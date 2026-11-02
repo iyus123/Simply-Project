@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input Arsip Project</title>
+    <!-- Menggunakan Tailwind langsung lewat CDN tanpa perlu install -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4 md:p-8 min-h-screen">
+    <div class="max-w-xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Input Arsip Project</h1>
+        
+        <form id="arsipForm" class="space-y-5">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Dokumen</label>
+                <input type="date" id="tanggal" required class="w-full border rounded p-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Kategori Dokumen</label>
+                <select id="kategori" required class="w-full border rounded p-2 focus:ring-blue-500 focus:border-blue-500" onchange="toggleNominal()">
+                    <option value="Operasional / SOP">Operasional / SOP</option>
+                    <option value="Pengeluaran / Kuitansi">Pengeluaran / Kuitansi</option>
+                    <option value="MoU / Kontrak">MoU / Kontrak</option>
+                    <option value="Absensi / SDM">Absensi / SDM</option>
+                    <option value="Lainnya" selected>Lainnya</option>
+                </select>
+            </div>
+
+            <!-- Kolom Nominal disembunyikan default, muncul via JavaScript -->
+            <div id="nominalContainer" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nominal (Rp)</label>
+                <input type="number" id="nominal" class="w-full border rounded p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Contoh: 150000" />
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan / Nama Item</label>
+                <input type="text" id="keterangan" required class="w-full border rounded p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Deskripsi dokumen..." />
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Upload File (Foto/Scan)</label>
+                <input type="file" id="dokumen" accept="image/*,application/pdf" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+            </div>
+
+            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Simpan Arsip
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // GANTI URL DI BAWAH INI DENGAN URL WEB APP APPS SCRIPT ANDA
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwV_DjlvWh8laH7m3AWpgHu8AnhNKzU6eMHCZPt_T9sCZmT6PW_W4TNq8ESHCoE1GHhgw/exec";
+
+        // Fungsi memunculkan kolom nominal
+        function toggleNominal() {
+            const kategori = document.getElementById("kategori").value;
+            const nominalContainer = document.getElementById("nominalContainer");
+            if (kategori === "Pengeluaran / Kuitansi") {
+                nominalContainer.classList.remove("hidden");
+                document.getElementById("nominal").required = true;
+            } else {
+                nominalContainer.classList.add("hidden");
+                document.getElementById("nominal").required = false;
+                document.getElementById("nominal").value = "";
+            }
+        }
+
+        // Fungsi mengubah file jadi tulisan panjang (Base64) agar bisa dikirim
+        const getBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        };
+
+        // Fungsi saat tombol simpan ditekan
+        document.getElementById("arsipForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById("submitBtn");
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Mengirim Data...";
+            submitBtn.classList.replace("bg-blue-600", "bg-gray-400");
+            submitBtn.classList.replace("hover:bg-blue-700", "bg-gray-400");
+
+            const fileInput = document.getElementById("dokumen");
+            let fileBase64 = "";
+            let fileName = "";
+            let mimeType = "";
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                fileBase64 = await getBase64(file);
+                // Nama file otomatis: YYYYMMDD_namafileasli.jpg
+                const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+                fileName = `${dateStr}_${file.name}`;
+                mimeType = file.type;
+            }
+
+            const payload = {
+                tanggal: document.getElementById("tanggal").value,
+                kategori: document.getElementById("kategori").value,
+                keterangan: document.getElementById("keterangan").value,
+                nominal: document.getElementById("nominal").value,
+                fileBase64: fileBase64,
+                fileName: fileName,
+                mimeType: mimeType
+            };
+
+            try {
+                // Mengirim data ke Google Sheets
+                await fetch(SCRIPT_URL, {
+                    method: "POST",
+                    body: JSON.stringify(payload)
+                });
+                alert("Data berhasil diarsipkan ke Google Sheets!");
+                document.getElementById("arsipForm").reset();
+                toggleNominal(); 
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Terjadi kesalahan saat mengirim data.");
+            } finally {
+                // Kembalikan tombol seperti semula
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Simpan Arsip";
+                submitBtn.classList.replace("bg-gray-400", "bg-blue-600");
+                submitBtn.classList.replace("bg-gray-400", "hover:bg-blue-700");
+            }
+        });
+    </script>
+</body>
+</html>
